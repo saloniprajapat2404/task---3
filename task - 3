@@ -1,0 +1,182 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <ncurses.h>
+#include <unistd.h>
+#include <time.h>
+
+#define WIDTH 20
+#define HEIGHT 10
+#define INITIAL_LENGTH 1
+#define DELAY 100000 // 100 milliseconds
+
+typedef struct {
+    int x;
+    int y;
+} Point;
+
+typedef struct {
+    Point body[WIDTH * HEIGHT];
+    int length;
+    Point direction;
+} Snake;
+
+typedef struct {
+    Point food;
+} Game;
+
+void init();
+void end();
+void draw_board(Snake *snake, Game *game);
+void update_snake(Snake *snake);
+void handle_input(Snake *snake);
+int collision(Snake *snake);
+void spawn_food(Game *game, Snake *snake);
+
+int main() {
+    Snake snake;
+    Game game;
+
+    init();
+    srand(time(NULL)); // Seed random number generator
+
+    // Initialize snake
+    snake.length = INITIAL_LENGTH;
+    snake.direction.x = 1; // Move right initially
+    snake.direction.y = 0;
+    snake.body[0].x = WIDTH / 2;
+    snake.body[0].y = HEIGHT / 2;
+
+    spawn_food(&game, &snake);
+
+    while (1) {
+        clear();
+        draw_board(&snake, &game);
+        handle_input(&snake);
+        update_snake(&snake);
+
+        if (collision(&snake)) {
+            break;
+        }
+
+        // Check if snake has eaten the food
+        if (snake.body[0].x == game.food.x && snake.body[0].y == game.food.y) {
+            snake.length++;
+            spawn_food(&game, &snake);
+        }
+
+        usleep(DELAY);
+    }
+
+    end();
+    printf("Game Over!\n");
+    return 0;
+}
+
+void init() {
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    timeout(0);
+}
+
+void end() {
+    endwin();
+}
+
+void draw_board(Snake *snake, Game *game) {
+    for (int i = 0; i < HEIGHT; i++) {
+        for (int j = 0; j < WIDTH; j++) {
+            if (i == 0 || i == HEIGHT - 1 || j == 0 || j == WIDTH - 1) {
+                mvprintw(i, j, "#");
+            }
+        }
+    }
+
+    for (int i = 0; i < snake->length; i++) {
+        mvprintw(snake->body[i].y, snake->body[i].x, "*");
+    }
+
+    mvprintw(game->food.y, game->food.x, "@");
+    refresh();
+}
+
+void update_snake(Snake *snake) {
+    Point new_head = snake->body[0];
+    new_head.x += snake->direction.x;
+    new_head.y += snake->direction.y;
+
+    // Move snake body
+    for (int i = snake->length - 1; i > 0; i--) {
+        snake->body[i] = snake->body[i - 1];
+    }
+    snake->body[0] = new_head;
+}
+
+void handle_input(Snake *snake) {
+    int ch = getch();
+    switch (ch) {
+        case KEY_UP:
+            if (snake->direction.y == 0) {
+                snake->direction.x = 0;
+                snake->direction.y = -1;
+            }
+            break;
+        case KEY_DOWN:
+            if (snake->direction.y == 0) {
+                snake->direction.x = 0;
+                snake->direction.y = 1;
+            }
+            break;
+        case KEY_LEFT:
+            if (snake->direction.x == 0) {
+                snake->direction.x = -1;
+                snake->direction.y = 0;
+            }
+            break;
+        case KEY_RIGHT:
+            if (snake->direction.x == 0) {
+                snake->direction.x = 1;
+                snake->direction.y = 0;
+            }
+            break;
+    }
+}
+
+int collision(Snake *snake) {
+    // Check if snake hits the walls
+    if (snake->body[0].x <= 0 || snake->body[0].x >= WIDTH - 1 ||
+        snake->body[0].y <= 0 || snake->body[0].y >= HEIGHT - 1) {
+        return 1;
+    }
+
+    // Check if snake runs into itself
+    for (int i = 1; i < snake->length; i++) {
+        if (snake->body[0].x == snake->body[i].x &&
+            snake->body[0].y == snake->body[i].y) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+void spawn_food(Game *game, Snake *snake) {
+    int x, y;
+    int collision;
+
+    do {
+        collision = 0;
+        x = rand() % (WIDTH - 2) + 1;
+        y = rand() % (HEIGHT - 2) + 1;
+
+        for (int i = 0; i < snake->length; i++) {
+            if (snake->body[i].x == x && snake->body[i].y == y) {
+                collision = 1;
+                break;
+            }
+        }
+    } while (collision);
+
+    game->food.x = x;
+    game->food.y = y;
+}
